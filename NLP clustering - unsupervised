@@ -1,0 +1,612 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[337]:
+
+
+import nltk
+import sklearn
+from sklearn import metrics
+from nltk.corpus import gutenberg
+from sklearn.model_selection import train_test_split
+import re
+import random
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import CountVectorizer 
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import confusion_matrix
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from sklearn.decomposition import  LatentDirichletAllocation as LDA
+from gensim.models import Word2Vec
+from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn import mixture
+from sklearn.metrics import silhouette_score
+from sklearn.metrics import cohen_kappa_score
+from sklearn.metrics.cluster import adjusted_rand_score
+import pyLDAvis
+import pyLDAvis.sklearn
+from sklearn.decomposition import PCA
+from copy import deepcopy
+from sklearn.utils import shuffle
+from nltk.stem.porter import PorterStemmer
+
+
+# In[338]:
+
+
+text_1 = gutenberg.open('14366-8.txt').read() #Argentina from a British Point of View, and Notes on Argentine Life by Ogilvie: Geography
+text_2 = gutenberg.open('12981.txt').read()   #The Thirsty Sword: A Story of the Norse Invasion of Scotland by Robert Leighton: History
+text_3 = gutenberg.open('5141.txt').read()    #What Katy Did at School by Susan Coolidge: Kids
+text_4 = gutenberg.open('7325.txt').read()    #Dreams and Days: Poems by George Parsons Lathrop: Poetry
+text_5 = gutenberg.open('21566.txt').read()   #The Good Old Songs We Used to Sing, '61 to '65 by Osborn H. Oldroyd : Music
+text_6 = gutenberg.open('2687.txt').read()    #The Snare by Rafael Sabatini: Adventure
+text_7 = gutenberg.open('14255-8.txt').read() #Hints for Lovers by Arnold Haultain: Love
+
+
+# In[339]:
+
+
+class Preprocess: #this class is for preprocessing and labeling the documents
+    
+    def __init__(self, text_1 , text_2 , text_3 , text_4 , text_5 , text_6 , text_7 ):
+
+        self.raw_text = [text_1, text_2, text_3 , text_4 , text_5 , text_6, text_7 ]
+        self.stopword = set(stopwords.words('english'))
+        self.clean_text = []
+        self.lower_text = []
+        self.tokenized_words = []
+        self.token_word = []
+        self.stem_word = []
+        self.random_text = []
+        self.stemmer = PorterStemmer()
+        
+        
+    def cleaning(self):
+        for i in range(len(self.raw_text)):
+            step1 = re.sub('[^a-zA-Z]',' ', self.raw_text[i])       
+            step2 = re.sub(r'\W*\b\w{1,3}\b', ' ', step1)
+            self.clean_text.append(step2)
+                
+        return self.clean_text
+    
+    def get_lower_case(self):
+        for text in self.clean_text:
+            self.lower_text.append(text.lower())
+        
+        return self.lower_text
+    
+    def tokenizing(self):        
+        for text in self.lower_text:
+            self.tokenized_words.append(nltk.word_tokenize(text))
+            
+        return self.tokenized_words
+    
+    def stop_word(self):
+        for text in self.tokenized_words:
+            self.token_word.append([word for word in text if not word in self.stopword])
+            
+        return self.token_word
+    
+    def stem(self):
+        for text in self.token_word:
+            self.stem_word.append([self.stemmer.stem(word) for word in text])
+            
+        return self.stem_word
+            
+    
+    def randomizing(self):
+        for counter in range(len(self.stem_word)):
+            random.seed(counter)
+            for doc in range(200):                
+                self.random_text.append(random.sample(self.stem_word[counter], 150))
+        return self.random_text
+    
+    def get_label(self):
+        df = []        
+        for b in range(len(self.random_text)):
+            if b <= 200:
+                df1 = pd.DataFrame()
+                df1['text']  = [self.random_text[b]]
+                df1['authors'] = 'a'            
+                df.append(df1)
+            elif b>200 and b<=400:
+                df2 = pd.DataFrame()
+                df2['text']  = [self.random_text[b]]
+                df2['authors'] = 'b'
+                df.append(df2)
+            elif b>400 and b<=600:
+                df3 = pd.DataFrame()
+                df3['text']  = [self.random_text[b]]
+                df3['authors'] = 'c'
+                df.append(df3)
+            elif b>600 and b<=800:
+                df4 = pd.DataFrame()
+                df4['text']  = [self.random_text[b]]
+                df4['authors'] = 'd'
+                df.append(df4)
+            elif b>800 and b<=1000:
+                df5 = pd.DataFrame()
+                df5['text']  = [self.random_text[b]]
+                df5['authors'] = 'e'
+                df.append(df5)
+            elif b>1000 and b<=1200:
+                df6 = pd.DataFrame()
+                df6['text']  = [self.random_text[b]]
+                df6['authors'] = 'f'
+                df.append(df6)
+            elif b>1200 and b<=1400:
+                df7 = pd.DataFrame()
+                df7['text']  = [self.random_text[b]]
+                df7['authors'] = 'g'
+                df.append(df7)
+        return df
+    
+    def word_for_word_cloud(self):
+        
+        self.cleaning()
+        self.get_lower_case()
+        self.tokenizing()
+        self.stop_word()
+        corp = self.stem()
+        word_cloud = (' '.join(str(' '.join(str(word) for word in document)) for document in corp))
+        
+        return word_cloud
+    
+    def run_preprocess(self):
+        self.cleaning()
+        self.get_lower_case()
+        self.tokenizing()
+        self.stop_word()
+        self.stem()
+        self.randomizing()
+        df_corpus = self.get_label()
+        df_corpus = pd.concat([df_corpus[v] for v in range(len(df_corpus))], ignore_index = True)
+        
+        return df_corpus
+        
+
+
+# In[358]:
+
+
+class Transform: #this class is for transorming the documents to BOW, TFIDF, LDA, ...
+    
+    def __init__(self):
+        
+        self.vectorize_bow = CountVectorizer()
+        self.encoder = LabelEncoder()
+        self.vectorize_tfidf = TfidfVectorizer()
+        self.tt_split = train_test_split
+        self.df_corpus_text = [' '.join(df_corpus['text'][i]) for i in range(1400)]
+        self.lda = LDA(n_components = 8, max_iter=10, n_jobs = -1, batch_size=128, learning_decay=0.5)
+        
+            
+    def vectorizing_bow(self):
+        
+        X_bow_raw = self.vectorize_bow.fit_transform(self.df_corpus_text).toarray()
+        y_bow = df_corpus['authors']
+        X_bow = pd.DataFrame(X_bow_raw)
+        y_bow = self.encoder.fit_transform(y_bow)
+        y = pd.DataFrame(y_bow)
+        
+        return X_bow , y , X_bow_raw
+    
+    def vectorizing_tfidf(self):
+        
+        X_tfidf =  self.vectorize_tfidf.fit_transform(self.df_corpus_text).toarray()
+        X_tfidf = pd.DataFrame(X_tfidf)
+        
+        return X_tfidf
+    
+    def vectorizing_lda(self):
+        
+        X_lda_raw = self.lda.fit_transform(X_bow_raw)
+        X_lda = pd.DataFrame(X_lda_raw)
+    
+        return X_lda, X_lda_raw
+            
+        
+    def train_test_set(self):  #we don't need it
+        
+        X_bow , y = self.vectorizing_bow()
+        X_tfidf = self.vectorizing_tfidf()
+        X_lda = self.vectorizing_lda()
+        
+        X_bow_train , X_bow_test , y_bow_train , y_bow_test = self.tt_split(X_bow, y , test_size = 0.30, random_state = 100)
+        y_bow_train = pd.Series(y_bow_train.iloc[:,0])
+        y_bow_test = pd.Series(y_bow_test.iloc[:,0])
+        
+        X_tfidf_train , X_tfidf_test , y_tfidf_train , y_tfidf_test = self.tt_split(X_tfidf, y , test_size = 0.30, random_state = 100)
+        y_tfidf_train = pd.Series(y_tfidf_train.iloc[:,0])
+        y_tfidf_test = pd.Series(y_tfidf_test.iloc[:,0])
+        
+        X_lda_train , X_lda_test , y_lda_train , y_lda_test = self.tt_split(X_lda, y , test_size = 0.30, random_state = 100)
+        y_lda_train = pd.Series(y_lda_train.iloc[:,0])
+        y_lda_test = pd.Series(y_lda_test.iloc[:,0])
+        
+        return  X_bow_train , X_bow_test , y_bow_train , y_bow_test,  X_tfidf_train , X_tfidf_test , y_tfidf_train , y_tfidf_test, X_lda_train , X_lda_test , y_lda_train , y_lda_test  
+
+
+# In[360]:
+
+
+class Train:   
+    def __init__(self):
+        
+        self.X_bow_cluster = X_bow.iloc[:,:].values
+        self.X_tfidf_cluster = X_tfidf.iloc[:,:].values
+        self.X_lda_cluster = X_lda.iloc[:,:].values
+        self.kmean_bow = KMeans(n_clusters=7)
+        self.kmean_tfidf = KMeans(n_clusters=7)
+        self.kmean_lda = KMeans(n_clusters=7)
+        
+    def kmeans_bow(self):
+        
+        self.kmean_bow = KMeans(n_clusters=7)
+        self.kmean_bow.fit(self.X_bow_cluster)
+        y_bow_kmean = self.kmean_bow.fit_predict(self.X_bow_cluster)
+        y_bow_kmean = pd.DataFrame(y_bow_kmean)
+        
+        return y_bow_kmean
+
+    
+    def kmeans_tfidf(self):
+        
+        
+        self.kmean_tfidf.fit(self.X_tfidf_cluster)
+        y_tfidf_kmean = self.kmean_tfidf.fit_predict(self.X_tfidf_cluster)
+        y_tfidf_kmean = pd.DataFrame(y_tfidf_kmean)
+        
+        return y_tfidf_kmean
+        
+    def kmeans_lda(self):
+        
+        self.kmean_lda = KMeans(n_clusters=7)
+        self.kmean_lda.fit(self.X_lda_cluster)
+        y_lda_kmean = self.kmean_lda.fit_predict(self.X_lda_cluster)
+        y_lda_kmean = pd.DataFrame(y_lda_kmean)
+        
+        return y_lda_kmean
+        
+    def agg_hc_clustering_bow(self):
+        
+        agg_bow = AgglomerativeClustering(n_clusters=7 , affinity = 'euclidean', linkage = 'ward')
+        y_bow_agg = agg_bow.fit_predict(self.X_bow_cluster)
+        
+        return y_bow_agg 
+        
+    def agg_hc_clustering_tfidf(self):
+        
+        agg_tfidf = AgglomerativeClustering(n_clusters=7 , affinity = 'euclidean', linkage = 'ward')
+        y_tfidf_agg = agg_tfidf.fit_predict(self.X_tfidf_cluster)
+        
+        return y_tfidf_agg
+    
+    def agg_hc_clustering_lda(self):
+        
+        agg_lda = AgglomerativeClustering(n_clusters=7 , affinity = 'euclidean', linkage = 'ward')
+        y_lda_agg = agg_lda.fit_predict(self.X_lda_cluster)
+        
+        return y_lda_agg
+        
+    def EM_bow(self):
+        
+        EM_bow = mixture.GaussianMixture(n_components = 7)
+        EM_bow.fit(X_bow)
+        y_bow_EM = EM_bow.fit_predict(X_bow)
+        
+        return y_bow_EM
+
+    def EM_tfidf(self):
+        
+        EM_tfidf = mixture.GaussianMixture(n_components = 7, covariance_type = 'full')
+        EM_tfidf.fit(X_tfidf)
+        y_tfidf_EM = EM_tfidf.fit_predict(X_tfidf)
+        
+        return y_tfidf_EM
+        
+    def EM_lda(self):
+        
+        EM_lda = mixture.GaussianMixture(n_components = 7, covariance_type = 'full')
+        EM_lda.fit(X_lda)
+        y_lda_EM = EM_lda.fit_predict(X_lda)
+        
+        return y_lda_EM
+
+        
+
+
+# In[362]:
+
+
+class Evaluation:
+    def __init__(self):
+        pass
+    
+    def slh(self):
+        
+        silhouette_bow_kmean = (silhouette_score(train.X_bow_cluster, y_bow_kmean, metric='euclidean'))
+        silhouette_tfidf_kmean = (silhouette_score(train.X_tfidf_cluster, y_tfidf_kmean, metric='euclidean'))
+        silhouette_lda_kmean = (silhouette_score(train.X_lda_cluster, y_lda_kmean, metric='euclidean'))
+        silhouette_bow_agg = (silhouette_score(train.X_bow_cluster, y_bow_agg, metric='euclidean'))
+        silhouette_tfidf_agg = (silhouette_score(train.X_tfidf_cluster, y_tfidf_agg, metric='euclidean'))
+        silhouette_lda_agg = (silhouette_score(train.X_lda_cluster, y_lda_agg, metric='euclidean'))
+#        silhouette_bow_EM = (silhouette_score(train.X_bow_cluster, y_bow_EM, metric='euclidean'))
+#        silhouette_tfidf_EM = (silhouette_score(train.X_tfidf_cluster, y_tfidf_EM, metric='euclidean'))
+        silhouette_lda_EM = (silhouette_score(train.X_lda_cluster, y_lda_EM, metric='euclidean'))
+
+        return silhouette_bow_kmean, silhouette_tfidf_kmean, silhouette_lda_kmean, silhouette_bow_agg, silhouette_tfidf_agg, silhouette_lda_agg, silhouette_lda_EM  
+    
+    def kappa(self):
+        
+        kappa_bow_kmean =cohen_kappa_score(y_bow_kmean, y)
+        kappa_tfidf_kmean =cohen_kappa_score(y_tfidf_kmean, y)
+        kappa_lda_kmean =cohen_kappa_score(y_lda_kmean, y)
+        kappa_bow_agg =cohen_kappa_score(y_bow_agg, y)
+        kappa_tfidf_agg =cohen_kappa_score(y_tfidf_agg, y)
+        kappa_lda_agg =cohen_kappa_score(y_lda_agg, y)
+#        kappa_bow_EM =cohen_kappa_score(y_bow_EM, y)
+#        kappa_tfidf_EM =cohen_kappa_score(y_tfidf_EM, y)
+        kappa_lda_EM =cohen_kappa_score(y_lda_EM, y)
+
+        return kappa_bow_kmean, kappa_tfidf_kmean, kappa_lda_kmean, kappa_bow_agg, kappa_tfidf_agg, kappa_lda_agg, kappa_lda_EM   
+        
+    def ari(self):
+        
+        ari_bow_kmean = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_bow_kmean.iloc[:,0].values.flatten())
+        ari_tfidf_kmean = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_tfidf_kmean.iloc[:,0].values.flatten())
+        ari_lda_kmean = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_lda_kmean.iloc[:,0].values.flatten())
+        ari_bow_agg = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_bow_agg)
+        ari_tfidf_agg = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_tfidf_agg)
+        ari_lda_agg = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_lda_agg)
+#        ari_bow_EM = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_bow_EM.iloc[:,0].values.flatten())
+#        ari_tfidf_EM = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_tfidf_EM.iloc[:,0].values.flatten())
+        ari_lda_EM = adjusted_rand_score(y.iloc[:,0].values.flatten() , y_lda_EM)
+        
+        return ari_bow_kmean, ari_tfidf_kmean, ari_lda_kmean, ari_bow_agg, ari_tfidf_agg, ari_lda_agg, ari_lda_EM
+
+
+
+
+# In[392]:
+
+
+class Visualization:
+    def __init__(self):
+        pass
+    
+    def pyldavis(self):
+        
+        lda_model = trans.lda.fit(X_bow_raw)
+        pyLDAvis.enable_notebook()
+        lda_viz = pyLDAvis.sklearn.prepare(lda_model, np.matrix(X_bow_raw) , trans.vectorize_bow)
+        return lda_viz
+    
+    def prep_wordcloud(self):
+        
+        words = prep.word_for_word_cloud()
+        wordcloud = WordCloud(max_font_size = 60).generate(words)
+        plt.figure(figsize=(16,12))
+        plt.imshow(wordcloud, interpolation = "bilinear")
+        plt.axis("off")
+        plt.show()
+    
+    def top_10_bow(self):
+        
+        top_10 = []
+        get_name = trans.vectorize_bow.get_feature_names()
+        centroids = train.kmean_bow.cluster_centers_.argsort()[:, ::-1]
+        for i in range(7):
+            cluster = []
+            for word in centroids[i, :10]:
+                cluster.append(get_name[word])
+            top_10.append(' '.join(str(''.join(str(x) for x in v)) for v in cluster))
+            
+        for i in range(len(top_10)):
+            wordcloud_10 = "".join(str(w) for w in top_10[i])
+            wordcloud = WordCloud(max_font_size = 40).generate(wordcloud_10)
+            plt.figure(figsize=(10,10))
+            plt.imshow(wordcloud, interpolation = "bilinear")
+            plt.axis("off")
+            plt.show()
+    
+    def top_10_tfidf(self):
+        
+        top_10 = []
+        get_name = trans.vectorize_bow.get_feature_names()
+        centroids = train.kmean_tfidf.cluster_centers_.argsort()[:, ::-1]
+        for i in range(7):
+            cluster = []
+            for word in centroids[i, :10]:
+                cluster.append(get_name[word])
+            top_10.append(' '.join(str(''.join(str(x) for x in v)) for v in cluster))
+            
+        for i in range(len(top_10)):
+            wordcloud_10 = "".join(str(w) for w in top_10[i])
+            wordcloud = WordCloud(max_font_size = 40).generate(wordcloud_10)
+            plt.figure(figsize=(10,10))
+            plt.imshow(wordcloud, interpolation = "bilinear")
+            plt.axis("off")
+            plt.show()
+    
+    def pca_kmean_bow(self):
+        pca_bow_converter = PCA(n_components=2)
+        converted_bow = pca_bow_converter.fit_transform(X_bow)
+        center_bow_converted = pca_bow_converter.transform(train.kmean_bow.cluster_centers_)
+        old_center_bow = np.zeros(center_bow_converted.shape) 
+        new_center_bow = deepcopy(center_bow_converted)
+        dif = np.linalg.norm(new_center_bow - old_center_bow)
+        clusters = np.zeros(converted_bow.shape[0])
+        distances = np.zeros((converted_bow.shape[0],7))
+        
+        while dif != 0:
+            for i in range(7):
+                distances[:,i] = np.linalg.norm(converted_bow - center_bow_converted[i], axis=1)
+            clusters = np.argmin(distances, axis = 1)
+            old_center_bow = deepcopy(new_center_bow)
+            for i in range(7):
+                new_center_bow[i] = np.mean(converted_bow[clusters == i], axis=0)
+            dif = np.linalg.norm(new_center_bow - old_center_bow) 
+        new_center_bow = new_center_bow
+
+        fig = plt.figure(figsize = (8,8))
+        plt_pca_kmean_bow = fig.add_subplot(111)
+        plt_pca_kmean_bow.set_xlabel('First_Component', fontsize = 10)
+        plt_pca_kmean_bow.set_ylabel('Second_Component', fontsize = 10)
+        plt_pca_kmean_bow.set_title('PCA_KMeans_BOW', fontsize = 15)
+
+        for color, i, books in zip(['y', 'b', 'orange', 'c', 'r','m','g'], [0, 1, 2, 3, 4, 5, 6], ['Ogilvie_Geography','Leighton_History','Coolidge_Kids','Lathrop_Poetry','Oldroyd_Music','Sabatini_Adventure','Haultain_Love']):
+            plt_pca_kmean_bow.scatter(converted_bow[y.to_numpy().flatten() == i, 0], converted_bow[y.to_numpy().flatten() == i, 1], alpha=.8, color=color,label=books, s = 10)
+        plt_pca_kmean_bow.legend(loc='best', shadow=False, scatterpoints=1)
+        plt_pca_kmean_bow.scatter(new_center_bow[:,0], new_center_bow[:,1], marker='*', c='k', label = 'centroid', s=150)
+        plt_pca_kmean_bow.grid()
+        
+    def pca_kmean_tfidf(self):
+        pca_tfidf_converter = PCA(n_components=2)
+        converted_tfidf = pca_tfidf_converter.fit_transform(X_tfidf)
+        center_tfidf_converted = pca_tfidf_converter.transform(train.kmean_tfidf.cluster_centers_)
+        old_center_tfidf = np.zeros(center_tfidf_converted.shape) # to store old centers
+        new_center_tfidf = deepcopy(center_tfidf_converted)
+        dif = np.linalg.norm(new_center_tfidf - old_center_tfidf)
+        clusters = np.zeros(converted_tfidf.shape[0])
+        distances = np.zeros((converted_tfidf.shape[0],7))
+        
+        while dif != 0:
+            for i in range(7):
+                distances[:,i] = np.linalg.norm(converted_tfidf - center_tfidf_converted[i], axis=1)
+            clusters = np.argmin(distances, axis = 1)
+            old_center_tfidf = deepcopy(new_center_tfidf)
+            for i in range(7):
+                new_center_tfidf[i] = np.mean(converted_tfidf[clusters == i], axis=0)
+            dif = np.linalg.norm(new_center_tfidf - old_center_tfidf) 
+        new_center_tfidf = new_center_tfidf
+
+        fig = plt.figure(figsize = (8,8))
+        plt_pca_kmean_tfidf = fig.add_subplot(111)
+        plt_pca_kmean_tfidf.set_xlabel('First_Component', fontsize = 10)
+        plt_pca_kmean_tfidf.set_ylabel('Second_Component', fontsize = 10)
+        plt_pca_kmean_tfidf.set_title('PCA_KMeans_TFIDF', fontsize = 15)
+
+        for color, i, books in zip(['y', 'b', 'orange', 'c', 'r','m','g'], [0, 1, 2, 3, 4, 5, 6], ['Ogilvie_Geography','Leighton_History','Coolidge_Kids','Lathrop_Poetry','Oldroyd_Music','Sabatini_Adventure','Haultain_Love']):
+            plt_pca_kmean_tfidf.scatter(converted_tfidf[y.to_numpy().flatten() == i, 0], converted_tfidf[y.to_numpy().flatten() == i, 1], alpha=.8, color=color,label=books, s = 10)
+        plt_pca_kmean_tfidf.legend(loc='best', shadow=False, scatterpoints=1)
+        plt_pca_kmean_tfidf.scatter(new_center_tfidf[:,0], new_center_tfidf[:,1], marker='*', c='k', label = 'centroid', s=150)
+        plt_pca_kmean_tfidf.grid()
+        
+    def pca_kmean_lda(self):
+        pca_lda_converter = PCA(n_components=2)
+        converted_lda = pca_lda_converter.fit_transform(X_lda)
+        center_lda_converted = pca_lda_converter.transform(train.kmean_lda.cluster_centers_)
+        old_center_lda = np.zeros(center_lda_converted.shape)
+        new_center_lda = deepcopy(center_lda_converted)
+        dif = np.linalg.norm(new_center_lda - old_center_lda)
+        clusters = np.zeros(converted_lda.shape[0])
+        distances = np.zeros((converted_lda.shape[0],7))
+        
+        while dif != 0:
+            for i in range(7):
+                distances[:,i] = np.linalg.norm(converted_lda - center_lda_converted[i], axis=1)
+            clusters = np.argmin(distances, axis = 1)
+            old_center_lda = deepcopy(new_center_lda)
+            for i in range(7):
+                new_center_lda[i] = np.mean(converted_lda[clusters == i], axis=0)
+            dif = np.linalg.norm(new_center_lda - old_center_lda) 
+        new_center_lda = new_center_lda
+
+        fig = plt.figure(figsize = (8,8))
+        plt_pca_kmean_lda = fig.add_subplot(111)
+        plt_pca_kmean_lda.set_xlabel('First_Component', fontsize = 10)
+        plt_pca_kmean_lda.set_ylabel('Second_Component', fontsize = 10)
+        plt_pca_kmean_lda.set_title('PCA_KMeans_LDA', fontsize = 15)
+
+        for color, i, books in zip(['y', 'b', 'orange', 'c', 'r','m','g'], [0, 1, 2, 3, 4, 5, 6], ['Ogilvie_Geography','Leighton_History','Coolidge_Kids','Lathrop_Poetry','Oldroyd_Music','Sabatini_Adventure','Haultain_Love']):
+            plt_pca_kmean_lda.scatter(converted_lda[y.to_numpy().flatten() == i, 0], converted_lda[y.to_numpy().flatten() == i, 1], alpha=.8, color=color,label=books, s = 10)
+        plt_pca_kmean_lda.legend(loc='best', shadow=False, scatterpoints=1)
+        plt_pca_kmean_lda.scatter(new_center_lda[:,0], new_center_lda[:,1], marker='*', c='k', label = 'centroid', s=5)
+        plt_pca_kmean_lda.grid()
+        
+    def scores(self):
+        silh = [silhouette_bow_kmean, silhouette_tfidf_kmean, silhouette_lda_kmean, silhouette_bow_agg, silhouette_tfidf_agg, silhouette_lda_agg, silhouette_lda_EM]
+        kappa = [kappa_bow_kmean, kappa_tfidf_kmean, kappa_lda_kmean, kappa_bow_agg, kappa_tfidf_agg, kappa_lda_agg, kappa_lda_EM]
+        ARI = [ari_bow_kmean, ari_tfidf_kmean, ari_lda_kmean, ari_bow_agg, ari_tfidf_agg, ari_lda_agg, ari_lda_EM]
+
+        fig = plt.figure(figsize = (16,10))
+        graph = fig.add_subplot(111)
+        graph.set_title('Evaluation', fontsize = 15)
+
+        plt.bar(np.arange(len(silh)), silh, width = 0.2, color='r', align = 'center', label = 'silhoutte')
+        plt.bar(np.arange(len(silh))+0.2, kappa, width = 0.2, color='g', align = 'center', label = 'kappa')
+        plt.bar(np.arange(len(silh))-0.2, ARI, width = 0.2, color='c', align = 'center', label = 'ARI')
+ 
+        plt.xticks(np.arange(len(silh)))
+        plt.xticks(np.arange(len(silh)),('K_Means_bow', 'K_Means_tfidf', 'K_Means_Lda', 'Agg_bow', 'Agg_tfidf', 'Agg_lda', 'EM_lda'))
+        plt.legend()
+
+        
+       
+       
+    
+
+
+# In[ ]:
+
+
+prep = Preprocess(text_1 , text_2 , text_3 , text_4 , text_5 , text_6 , text_7)
+df_corpus = prep.run_preprocess()
+
+#################################################################################################################################################
+
+trans = Transform()
+X_bow , y , X_bow_raw = trans.vectorizing_bow()
+X_tfidf = trans.vectorizing_tfidf()
+X_lda, X_lda_raw = trans.vectorizing_lda()
+
+#######################################################################################################################################
+
+train = Train()
+y_bow_kmean = train.kmeans_bow()
+y_tfidf_kmean = train.kmeans_tfidf()
+y_lda_kmean = train.kmeans_lda()
+y_bow_agg = train.agg_hc_clustering_bow()
+y_tfidf_agg = train.agg_hc_clustering_tfidf()
+y_lda_agg = train.agg_hc_clustering_lda()
+#y_bow_EM = train.EM_bow()
+#y_tfidf_EM = train.EM_tfidf()
+y_lda_EM = train.EM_lda()
+
+########################################################################################################################################
+
+evalu = Evaluation()
+silhouette_bow_kmean, silhouette_tfidf_kmean, silhouette_lda_kmean, silhouette_bow_agg, silhouette_tfidf_agg, silhouette_lda_agg, silhouette_lda_EM = evalu.slh()
+kappa_bow_kmean, kappa_tfidf_kmean, kappa_lda_kmean, kappa_bow_agg, kappa_tfidf_agg, kappa_lda_agg, kappa_lda_EM = evalu.kappa()
+ari_bow_kmean, ari_tfidf_kmean, ari_lda_kmean, ari_bow_agg, ari_tfidf_agg, ari_lda_agg, ari_lda_EM = evalu.ari()
+
+#####################################################################################################################################
+
+viz = Visualization()
+viz.prep_wordcloud()
+viz.prep_wordcloud()
+viz.scores()
+viz.pca_kmean_tfidf()
+viz.pca_kmean_bow()
+viz.pca_kmean_lda()
+viz.top_10_bow()
+viz.top_10_tfidf()
+viz.pyldavis()
+
+
+# In[ ]:
+
+
+
+
